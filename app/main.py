@@ -14,8 +14,8 @@ TOKEN_STORE: dict[str, dict[str, Any]] = {}
 
 
 class DHLAuthPayload(BaseModel):
-    userId: str = "2d7c835f-12bf-461a-bb9d-fbff44019469"
-    key: str = "fc2a0122-4286-431b-90d2-d93df6248341"
+    userId: str = Field(..., examples=["string"])
+    key: str = Field(..., examples=["string"])
     accountNumbers: list[str] = ["05868468"]
     orderId: int = Field(..., description="DHL orderId to query labels for.")
 
