@@ -42,7 +42,7 @@ def _build_label_pending_response(order_id: str, upstream_message: str | None = 
 
 
 @app.post("/dhl/track-order")
-async def dhl_track_order(request: TrackOrderRequest) -> dict[str, Any] | JSONResponse:
+async def dhl_track_order(request: TrackOrderRequest) -> Any:
     auth_url = "https://api-gw.dhlparcel.nl/authenticate/api-key"
     labels_url = "https://api-gw.dhlparcel.nl/labels"
     track_url = "https://api-gw.dhlparcel.nl/track-trace"
