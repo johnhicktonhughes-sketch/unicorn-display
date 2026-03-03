@@ -1,7 +1,8 @@
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 
@@ -28,8 +29,20 @@ class TrackOrderRequest(BaseModel):
     )
 
 
+def _build_label_pending_response(order_id: str, upstream_message: str | None = None) -> JSONResponse:
+    detail = {
+        "status": "label_pending",
+        "message": "Label has not been produced yet. Retry this order later.",
+        "orderId": order_id,
+        "labelsFound": 0,
+    }
+    if upstream_message:
+        detail["upstream"] = upstream_message
+    return JSONResponse(status_code=status.HTTP_202_ACCEPTED, content=detail)
+
+
 @app.post("/dhl/track-order")
-async def dhl_track_order(request: TrackOrderRequest) -> dict[str, Any]:
+async def dhl_track_order(request: TrackOrderRequest) -> dict[str, Any] | JSONResponse:
     auth_url = "https://api-gw.dhlparcel.nl/authenticate/api-key"
     labels_url = "https://api-gw.dhlparcel.nl/labels"
     track_url = "https://api-gw.dhlparcel.nl/track-trace"
@@ -66,6 +79,8 @@ async def dhl_track_order(request: TrackOrderRequest) -> dict[str, Any]:
             params={"orderReferenceFilter": order_id},
             headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
         )
+        if labels_resp.status_code == 404:
+            return _build_label_pending_response(order_id, labels_resp.text)
         if labels_resp.status_code != 200:
             raise HTTPException(
                 status_code=labels_resp.status_code,
@@ -74,10 +89,7 @@ async def dhl_track_order(request: TrackOrderRequest) -> dict[str, Any]:
 
         labels_data = labels_resp.json()
         if not isinstance(labels_data, list) or not labels_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No labels found for orderReferenceFilter={order_id}.",
-            )
+            return _build_label_pending_response(order_id)
 
         tracker_code = labels_data[0].get("trackerCode")
         if not tracker_code:
@@ -107,6 +119,7 @@ async def dhl_track_order(request: TrackOrderRequest) -> dict[str, Any]:
 
     return {
         "orderId": order_id,
+        "labelsFound": 1,
         "trackerCode": tracker_code,
         "tokensStored": True,
         "tokenStoreKey": order_id,
